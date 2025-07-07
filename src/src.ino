@@ -1,5 +1,7 @@
 #include <Arduino.h>
 
+#include <qrcode.h>
+
 #define BAUD_RATE 115200
 #define LED_BUILTIN 4
 
@@ -8,10 +10,16 @@ void ledBlink(int n);
 void setup() {
   Serial.begin(BAUD_RATE);
   pinMode(LED_BUILTIN, OUTPUT);
+  setupQRCodeReader();
+  resumeQRCodeReading();
 }
 
 void loop() {
-  
+  char *payload = readQRCode();
+  if(payload != NULL) {
+    Serial.println(payload);
+    ledBlink(1, 50);
+  }
 }
 
 /**
