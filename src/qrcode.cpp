@@ -1,4 +1,5 @@
 #include <qrcode.h>
+#include <stdint.h>
 
 ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
 
@@ -6,8 +7,12 @@ void onQrCodeTask(void *pvParameters);
 
 int readingDelay = 50;
 bool readingQRCode = false;
-bool successfulRead = false;
-char *rawPayload = NULL;
+
+QRCodePayload qrCodePayload = {
+  NULL,
+  -1,
+  false
+};
 
 /**
  * @brief Setups the QR Code reader
@@ -50,13 +55,14 @@ void onQrCodeTask(void *pvParameters) {
     if (readingQRCode) {
       if (reader.receiveQrCode(&qrCodeData, 100)) {
         if (qrCodeData.valid) {
-          rawPayload = (char *)qrCodeData.payload;
-          successfulRead = true;
+          qrCodePayload.rawPayload = qrCodeData.payload;
+          qrCodePayload.payloadLength = qrCodeData.payloadLen;
+          qrCodePayload.successfulRead = true;
         } else {
-          successfulRead = false;
+          qrCodePayload.successfulRead = false;
         }
       } else {
-        successfulRead = false;
+        qrCodePayload.successfulRead = false;
       }
     }
     vTaskDelay(readingDelay / portTICK_PERIOD_MS);
@@ -65,11 +71,23 @@ void onQrCodeTask(void *pvParameters) {
 
 /**
  * @brief Reads the QR Code from the ESP32-CAM
- * @return The read QR Code payload or NULL if the read failed
+ * @return The read QR Code payload
  */
-char *readQRCode() {
-  if (successfulRead) {
-    return rawPayload;
+QRCodePayload readQRCode() {
+  return qrCodePayload;
+}
+
+/**
+ * @brief Prints the QR Code payload in the HEX format
+ */
+void printQRCodePayload(QRCodePayload qrcode) {
+  if(qrcode.successfulRead) {
+    for(int i = 0; i < qrcode.payloadLength; i++) {
+      uint8_t payloadByte = qrcode.rawPayload[i];
+      if(payloadByte <= 15) Serial.print("0"); /* 0 left padding for 0 to F */
+      Serial.print(payloadByte, HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
   }
-  return NULL;
 }
