@@ -79,13 +79,15 @@ QRCodePayload readQRCode() {
 
 /**
  * @brief Prints the QR Code payload in the HEX format
+ * @param qrcode The QR Code payload
+ * @param format The print format (DEC, HEX, OCT, etc.)
  */
-void printQRCodePayload(QRCodePayload qrcode) {
+void printQRCodePayload(QRCodePayload qrcode, int format) {
   if(qrcode.successfulRead) {
     for(int i = 0; i < qrcode.payloadLength; i++) {
       uint8_t payloadByte = qrcode.rawPayload[i];
-      if(payloadByte <= 15) Serial.print("0"); /* 0 left padding for 0 to F */
-      Serial.print(payloadByte, HEX);
+      if(payloadByte <= 15 && format == HEX) Serial.print("0"); /* 0 left padding for 0 to F */
+      Serial.print(payloadByte, format);
       Serial.print(" ");
     }
     Serial.println();

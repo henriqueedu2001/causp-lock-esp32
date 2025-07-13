@@ -13,4 +13,4 @@ void suspendQRCodeReading();
 void setReadingDelay(int newDelay);
 
 QRCodePayload readQRCode();
-void printQRCodePayload(QRCodePayload qrcode);
+void printQRCodePayload(QRCodePayload qrcode, int format);
