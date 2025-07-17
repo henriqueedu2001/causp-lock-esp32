@@ -1,6 +1,7 @@
 #include <decoder.h>
 
 int getPayloadBodyLength(int payloadLength);
+int getPayloadMessageLength(int payloadLength);
 
 /**
  * @brief Decodes the raw QR Code payload
@@ -10,33 +11,40 @@ int getPayloadBodyLength(int payloadLength);
  */
 DecodedQRCodeData getQRCodeData(uint8_t *payload, int payloadLength) {
     DecodedQRCodeData decodedQRCodeData = {
-        0,    /* uint8_t payloadHeader  */
-        NULL, /* uint8_t *payloadBody   */
-        NULL, /* uint8_t *payloadHash   */
-        0,    /* uint8_t messageType    */
-        0,    /* uint8_t operationType  */
-        0,    /* uint8_t userId         */
-        0,    /* uint8_t generatedAt    */
-        0,    /* uint8_t syncTime       */
-        0,    /* uint8_t debugBlink     */
-        0,    /* uint8_t debugSyncTime  */
-        NULL, /* uint8_t *newKey        */
-        false /* bool successfulDecoding    */
+        0,     /* uint8_t payloadHeader   */
+        NULL,  /* uint8_t *payloadBody    */
+        NULL,  /* uint8_t *payloadHash    */
+        NULL,  /* uint8_t *payloadMessage */
+        0,     /* uint8_t messageType     */
+        0,     /* uint8_t operationType   */
+        0,     /* uint8_t userId          */
+        0,     /* uint8_t generatedAt     */
+        0,     /* uint8_t syncTime        */
+        0,     /* uint8_t debugBlink      */
+        0,     /* uint8_t debugSyncTime   */
+        NULL,  /* uint8_t *newKey         */
+        false, /* bool successfulDecoding */
+        0,     /* bodyLength              */
+        0      /* messageLength           */
     };
     uint8_t payloadHeader = getPayloadHeader(payload);
     uint8_t *payloadBody = getPayloadBody(payload, payloadLength);
     uint8_t *payloadHash = getPayloadHash(payload, payloadLength);
+    uint8_t *payloadMessage = getPayloadMessage(payload, payloadLength);
     uint8_t messageType = getMessageType(payloadHeader);
     uint8_t operationType = getOperationType(payloadHeader);
     int bodyLength = getPayloadBodyLength(payloadLength);
+    int messageLength = getPayloadMessageLength(payloadLength);
     bool successfulDecoding = true;
 
     decodedQRCodeData.payloadHeader = payloadHeader;
     decodedQRCodeData.payloadBody = payloadBody;
     decodedQRCodeData.payloadHash = payloadHash;
+    decodedQRCodeData.payloadMessage = payloadMessage;
     decodedQRCodeData.messageType = messageType;
     decodedQRCodeData.operationType = operationType;
     decodedQRCodeData.bodyLength = bodyLength;
+    decodedQRCodeData.messageLength = messageLength;
     decodedQRCodeData.successfulDecoding = successfulDecoding;
 
     return decodedQRCodeData;
@@ -53,6 +61,8 @@ void freeMallocData(DecodedQRCodeData *decodedQRCodeData) {
     decodedQRCodeData->payloadHash = NULL;
     free((*decodedQRCodeData).newKey);
     decodedQRCodeData->newKey = NULL;
+    free((*decodedQRCodeData).payloadMessage);
+    decodedQRCodeData->payloadMessage = NULL;
 }
 
 /**
@@ -92,13 +102,35 @@ uint8_t *getPayloadHash(uint8_t *payload, int payloadLength) {
 }
 
 /**
+ * @brief Extracts the message (header + body) from the payload
+ * @param payload The payload uint8_t array
+ * @param payloadLength The payload size in bytes
+ * @return The payload message
+ */
+uint8_t *getPayloadMessage(uint8_t *payload, int payloadLength) {
+    uint8_t *payloadMessage = (uint8_t *) malloc((payloadLength - HASH_LENGTH) * sizeof(uint8_t));
+    for(int i = 0; i < payloadLength - HASH_LENGTH; i++)
+        payloadMessage[i] = payload[i];
+    return payloadMessage;
+}
+
+/**
  * @brief Extract the length of the QR Code payload body
- * @param payload The QR Code payload
  * @param payloadLength the length of the payload
  * @return The body length
  */
 int getPayloadBodyLength(int payloadLength) {
     int bodySize = payloadLength - HEADER_LENGTH - HASH_LENGTH;
+    return bodySize; 
+}
+
+/**
+ * @brief Extract the length of the QR Code payload message (header + body)
+ * @param payloadLength the length of the payload
+ * @return The message length
+ */
+int getPayloadMessageLength(int payloadLength) {
+    int bodySize = payloadLength - HASH_LENGTH;
     return bodySize; 
 }
 
@@ -212,6 +244,7 @@ void printDecodedQRCodeData(DecodedQRCodeData decodedQRCodeData) {
     uint8_t payloadHeader = decodedQRCodeData.payloadHeader;
     uint8_t *payloadBody = decodedQRCodeData.payloadBody;
     uint8_t *payloadHash = decodedQRCodeData.payloadHash;
+    uint8_t *payloadMessage = decodedQRCodeData.payloadMessage;
     uint8_t messageType = decodedQRCodeData.messageType;
     uint8_t operationType = decodedQRCodeData.operationType;
     int userId = decodedQRCodeData.userId;
@@ -246,6 +279,15 @@ void printDecodedQRCodeData(DecodedQRCodeData decodedQRCodeData) {
         Serial.print("payloadHash: ");
         for(int i = 0; i < HASH_LENGTH; i++) {
             Serial.print(payloadHash[i], HEX);
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
+
+    if(payloadMessage != NULL) {
+        Serial.print("payloadMessage: ");
+        for(int i = 0; i < bodyLength + HEADER_LENGTH; i++) {
+            Serial.print(payloadMessage[i], HEX);
             Serial.print(" ");
         }
         Serial.println();

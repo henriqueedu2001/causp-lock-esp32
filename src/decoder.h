@@ -12,6 +12,7 @@ typedef struct {
   uint8_t payloadHeader;
   uint8_t *payloadBody;
   uint8_t *payloadHash;
+  uint8_t *payloadMessage;
   uint8_t messageType;
   uint8_t operationType;
   int userId;
@@ -22,6 +23,7 @@ typedef struct {
   uint8_t *newKey;
   bool successfulDecoding;
   int bodyLength;
+  int messageLength;
 } DecodedQRCodeData;
 
 DecodedQRCodeData getQRCodeData(uint8_t *payload, int payloadLength);
@@ -30,6 +32,7 @@ void freeMallocData(DecodedQRCodeData *decodedQRCodeData);
 uint8_t getPayloadHeader(uint8_t *payload);
 uint8_t *getPayloadBody(uint8_t *payload, int payloadLength);
 uint8_t *getPayloadHash(uint8_t *payload, int payloadLength);
+uint8_t *getPayloadMessage(uint8_t *payload, int payloadLength);
 
 uint8_t getMessageType(uint8_t header);
 uint8_t getOperationType(uint8_t header);
