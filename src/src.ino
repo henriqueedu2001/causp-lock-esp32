@@ -26,7 +26,6 @@ void setup() {
 
 void loop() {
   QRCodePayload qrcodePayload = readQRCode();
-
   if(qrcodePayload.successfulRead) {
     DecodedQRCodeData decodedQRCodeData = getQRCodeData(qrcodePayload.rawPayload, qrcodePayload.payloadLength);
     printDecodedQRCodeData(decodedQRCodeData);
