@@ -2,6 +2,7 @@
 
 int getPayloadBodyLength(int payloadLength);
 int getPayloadMessageLength(int payloadLength);
+bool assertPayloadLength(int payloadLength, uint8_t messageType, uint8_t operationType);
 
 uint8_t *rawPayloadPtr;
 int rawPayloadLength;
@@ -35,28 +36,26 @@ DecodedQRCodeData getQRCodeData(uint8_t *payload, int payloadLength) {
     rawPayloadPtr = payload;
     rawPayloadLength = payloadLength;
     
-    /* message type independent fields */
+    /* header fields */
     uint8_t payloadHeader = getPayloadHeader(payload);
-    uint8_t *payloadBody = getPayloadBody(payload, payloadLength);
-    uint8_t *payloadHash = NULL;
-    uint8_t *payloadMessage = getPayloadMessage(payload, payloadLength);
     uint8_t messageType = getMessageType(payloadHeader);
     uint8_t operationType = getOperationType(payloadHeader);
-    bool needToAuthenticate = false;
 
-    /* extracts the hash only if the message */
-    if(messageType == MESSAGE_TYPE_ACCESS || messageType == MESSAGE_TYPE_SYNC || messageType == MESSAGE_TYPE_CONFIG) {
-        payloadHash = getPayloadHash(payload, payloadLength);
-        needToAuthenticate = true;
+    /* if the payload length is not compatible with the expected length, abort with decodedQRCodeData */
+    if(!assertPayloadLength(payloadLength, messageType, operationType)) {
+        return decodedQRCodeData;
     }
 
-    /* message type dependent fields */
+    /* payload data fields */
+    uint8_t *payloadBody = getPayloadBody(payload, payloadLength);
+    uint8_t *payloadMessage = getPayloadMessage(payload, payloadLength);
     unsigned int userId = 0;
     unsigned int generatedAt = 0;
     unsigned int syncTime = 0;
     unsigned int debugBlink = 0;
     unsigned int debugSyncTime = 0;
     uint8_t *newKey = NULL;
+    bool needToAuthenticate = false;
 
     /* only extracts the important data from the body, based on the messageType */
     switch(messageType) {
@@ -79,6 +78,14 @@ DecodedQRCodeData getQRCodeData(uint8_t *payload, int payloadLength) {
                     debugBlink = getDebugBlink(payloadBody);
             }
             break;
+    }
+
+    /* payload hash */
+    uint8_t *payloadHash = NULL;
+    if(messageType == MESSAGE_TYPE_ACCESS || messageType == MESSAGE_TYPE_SYNC || messageType == MESSAGE_TYPE_CONFIG) {
+        /* extract only if the message type requires authentication */
+        payloadHash = getPayloadHash(payload, payloadLength);
+        needToAuthenticate = true;
     }
 
     /* metadata */
@@ -105,6 +112,22 @@ DecodedQRCodeData getQRCodeData(uint8_t *payload, int payloadLength) {
     decodedQRCodeData.needToAuthenticate = needToAuthenticate;
 
     return decodedQRCodeData;
+}
+
+/**
+ * @brief Checks if the payload length meets the required length for that messageType + operationType
+ * @param payloadLength The payload length
+ * @param messageType The messageType
+ * @param operationType The operationType
+ * @return True if the length is correct and false otherwise
+ */
+bool assertPayloadLength(int payloadLength, uint8_t messageType, uint8_t operationType) {
+    bool valid = true;
+    if(messageType == MESSAGE_TYPE_ACCESS && payloadLength != HEADER_LENGTH + 8 + HASH_LENGTH) return false;
+    if(messageType == MESSAGE_TYPE_SYNC && payloadLength != HEADER_LENGTH + 4 + HASH_LENGTH) return false;
+    if(messageType == MESSAGE_TYPE_CONFIG && payloadLength != HEADER_LENGTH + NEW_KEY_LENGTH + HASH_LENGTH) return false;
+    if(messageType == MESSAGE_TYPE_DEBUG && payloadLength < HEADER_LENGTH + 4) return false;
+    return valid;
 }
 
 /**

@@ -7,11 +7,26 @@
 #define USER_ID_LENGTH 4
 #define DATETIME_LENGTH 4
 #define INT_LENGTH 4
-#define NEW_KEY_LENGTH 20 
+#define NEW_KEY_LENGTH 20
+
+/* message types */
 #define MESSAGE_TYPE_ACCESS 0
 #define MESSAGE_TYPE_SYNC 1
 #define MESSAGE_TYPE_CONFIG 2
 #define MESSAGE_TYPE_DEBUG 3
+
+/* operation types */
+#define OPERATION_TYPE_CHECK_IN 0
+#define OPERATION_TYPE_CHECK_OUT 1
+#define OPERATION_TYPE_BI_ACCESS 2
+#define OPERATION_TYPE_CHECK_IN 0
+#define OPERATION_SET_TIME = 0
+#define OPERATION_SET_MASTER_KEY = 0
+#define OPERATION_SET_CONFIG_KEY = 1
+#define OPERATION_SET_SYNC_KEY = 2
+#define OPERATION_SET_ACCESS_KEY = 3
+#define OPERATION_BLINK_N_TIMES = 0
+#define OPERATION_BLINK_IF_SYNC = 1
 
 typedef struct {
   uint8_t payloadHeader;
