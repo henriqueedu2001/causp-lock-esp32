@@ -3,6 +3,9 @@
 int getPayloadBodyLength(int payloadLength);
 int getPayloadMessageLength(int payloadLength);
 
+uint8_t *rawPayloadPtr;
+int rawPayloadLength;
+
 /**
  * @brief Decodes the raw QR Code payload
  * @param payload The raw QR Code payload uint8_t *buffer
@@ -11,41 +14,95 @@ int getPayloadMessageLength(int payloadLength);
  */
 DecodedQRCodeData getQRCodeData(uint8_t *payload, int payloadLength) {
     DecodedQRCodeData decodedQRCodeData = {
-        0,     /* uint8_t payloadHeader   */
-        NULL,  /* uint8_t *payloadBody    */
-        NULL,  /* uint8_t *payloadHash    */
-        NULL,  /* uint8_t *payloadMessage */
-        0,     /* uint8_t messageType     */
-        0,     /* uint8_t operationType   */
-        0,     /* uint8_t userId          */
-        0,     /* uint8_t generatedAt     */
-        0,     /* uint8_t syncTime        */
-        0,     /* uint8_t debugBlink      */
-        0,     /* uint8_t debugSyncTime   */
-        NULL,  /* uint8_t *newKey         */
-        false, /* bool successfulDecoding */
-        0,     /* bodyLength              */
-        0      /* messageLength           */
+        0,     /* uint8_t payloadHeader      */
+        NULL,  /* uint8_t *payloadBody       */
+        NULL,  /* uint8_t *payloadHash       */
+        NULL,  /* uint8_t *payloadMessage    */
+        0,     /* uint8_t messageType        */
+        0,     /* uint8_t operationType      */
+        0,     /* unsigned int userId        */
+        0,     /* unsigned int generatedAt   */
+        0,     /* unsigned int syncTime      */
+        0,     /* unsigned int debugBlink    */
+        0,     /* unsigned int debugSyncTime */
+        NULL,  /* uint8_t *newKey            */
+        false, /* bool successfulDecoding    */
+        0,     /* int bodyLength             */
+        0,     /* int messageLength          */
+        false, /* bool needToAuthenticate    */
     };
+    /* raw qr code payload data */
+    rawPayloadPtr = payload;
+    rawPayloadLength = payloadLength;
+    
+    /* message type independent fields */
     uint8_t payloadHeader = getPayloadHeader(payload);
     uint8_t *payloadBody = getPayloadBody(payload, payloadLength);
-    uint8_t *payloadHash = getPayloadHash(payload, payloadLength);
+    uint8_t *payloadHash = NULL;
     uint8_t *payloadMessage = getPayloadMessage(payload, payloadLength);
     uint8_t messageType = getMessageType(payloadHeader);
     uint8_t operationType = getOperationType(payloadHeader);
+    bool needToAuthenticate = false;
+
+    /* extracts the hash only if the message */
+    if(messageType == MESSAGE_TYPE_ACCESS || messageType == MESSAGE_TYPE_SYNC || messageType == MESSAGE_TYPE_CONFIG) {
+        payloadHash = getPayloadHash(payload, payloadLength);
+        needToAuthenticate = true;
+    }
+
+    /* message type dependent fields */
+    unsigned int userId = 0;
+    unsigned int generatedAt = 0;
+    unsigned int syncTime = 0;
+    unsigned int debugBlink = 0;
+    unsigned int debugSyncTime = 0;
+    uint8_t *newKey = NULL;
+
+    /* only extracts the important data from the body, based on the messageType */
+    switch(messageType) {
+        case MESSAGE_TYPE_ACCESS:
+            userId = getUserId(payloadBody);
+            generatedAt = getGeneratedAt(payloadBody);
+            break;
+        case MESSAGE_TYPE_SYNC:
+            syncTime = getSyncTime(payloadBody);
+            break;
+        case MESSAGE_TYPE_CONFIG:
+            newKey = getNewKey(payloadBody);
+            break;
+        case MESSAGE_TYPE_DEBUG:
+            switch(operationType) {
+                case 0:
+                    debugBlink = getDebugBlink(payloadBody);
+                    break;
+                case 1:
+                    debugBlink = getDebugBlink(payloadBody);
+            }
+            break;
+    }
+
+    /* metadata */
     int bodyLength = getPayloadBodyLength(payloadLength);
     int messageLength = getPayloadMessageLength(payloadLength);
     bool successfulDecoding = true;
 
+    /* writing the decoded data in the decodedQRCodeData struct */
     decodedQRCodeData.payloadHeader = payloadHeader;
     decodedQRCodeData.payloadBody = payloadBody;
     decodedQRCodeData.payloadHash = payloadHash;
     decodedQRCodeData.payloadMessage = payloadMessage;
     decodedQRCodeData.messageType = messageType;
     decodedQRCodeData.operationType = operationType;
+    decodedQRCodeData.successfulDecoding = successfulDecoding;
+    decodedQRCodeData.userId = userId;
+    decodedQRCodeData.generatedAt = generatedAt;
+    decodedQRCodeData.syncTime = syncTime;
+    decodedQRCodeData.debugBlink = debugBlink;
+    decodedQRCodeData.debugSyncTime = debugSyncTime;
+    decodedQRCodeData.newKey = newKey;
     decodedQRCodeData.bodyLength = bodyLength;
     decodedQRCodeData.messageLength = messageLength;
-    decodedQRCodeData.successfulDecoding = successfulDecoding;
+    decodedQRCodeData.needToAuthenticate = needToAuthenticate;
 
     return decodedQRCodeData;
 }
@@ -108,8 +165,9 @@ uint8_t *getPayloadHash(uint8_t *payload, int payloadLength) {
  * @return The payload message
  */
 uint8_t *getPayloadMessage(uint8_t *payload, int payloadLength) {
-    uint8_t *payloadMessage = (uint8_t *) malloc((payloadLength - HASH_LENGTH) * sizeof(uint8_t));
-    for(int i = 0; i < payloadLength - HASH_LENGTH; i++)
+    int messageLength = getPayloadMessageLength(payloadLength);
+    uint8_t *payloadMessage = (uint8_t *) malloc((messageLength) * sizeof(uint8_t));
+    for(int i = 0; i < messageLength; i++)
         payloadMessage[i] = payload[i];
     return payloadMessage;
 }
@@ -120,8 +178,9 @@ uint8_t *getPayloadMessage(uint8_t *payload, int payloadLength) {
  * @return The body length
  */
 int getPayloadBodyLength(int payloadLength) {
-    int bodySize = payloadLength - HEADER_LENGTH - HASH_LENGTH;
-    return bodySize; 
+    int bodyLength = payloadLength - HEADER_LENGTH - HASH_LENGTH;
+    if(bodyLength <= 0) bodyLength = payloadLength - HEADER_LENGTH;
+    return bodyLength; 
 }
 
 /**
@@ -130,8 +189,9 @@ int getPayloadBodyLength(int payloadLength) {
  * @return The message length
  */
 int getPayloadMessageLength(int payloadLength) {
-    int bodySize = payloadLength - HASH_LENGTH;
-    return bodySize; 
+    int messageLength = payloadLength - HASH_LENGTH;
+    if(messageLength <= 0) messageLength = payloadLength;
+    return messageLength; 
 }
 
 /**
@@ -159,8 +219,8 @@ uint8_t getOperationType(uint8_t header) {
  * @param body The payload body
  * @return The userId of the payload body
  */
-int getUserId(uint8_t *body) {
-    int userId = 0;
+unsigned int getUserId(uint8_t *body) {
+    unsigned int userId = 0;
     for(int i = 0; i < USER_ID_LENGTH; i++) {
         int byte = (int) body[i] << 8 * (USER_ID_LENGTH - i - 1);
         userId = userId | byte;
@@ -173,8 +233,8 @@ int getUserId(uint8_t *body) {
  * @param body The payload body
  * @return The generatedAt of the payload body
  */
-int getGeneratedAt(uint8_t *body) {
-    int generatedAt = 0;
+unsigned int getGeneratedAt(uint8_t *body) {
+    unsigned int generatedAt = 0;
     for(int i = 0; i < DATETIME_LENGTH; i++) {
         int byte = (int) body[i + USER_ID_LENGTH] << 8 * (USER_ID_LENGTH - i - 1);
         generatedAt = generatedAt | byte;
@@ -187,8 +247,8 @@ int getGeneratedAt(uint8_t *body) {
  * @param body The payload body
  * @return The generatedAt of the payload body
  */
-int getSyncTime(uint8_t *body) {
-    int syncTime = 0;
+unsigned int getSyncTime(uint8_t *body) {
+    unsigned int syncTime = 0;
     for(int i = 0; i < DATETIME_LENGTH; i++) {
         int byte = (int) body[i] << 8 * (DATETIME_LENGTH - i - 1);
         syncTime = syncTime | byte;
@@ -201,8 +261,8 @@ int getSyncTime(uint8_t *body) {
  * @param body The payload body
  * @return The generatedAt of the payload body
  */
-int getDebugBlink(uint8_t *body) {
-    int debugBlink = 0;
+unsigned int getDebugBlink(uint8_t *body) {
+    unsigned int debugBlink = 0;
     for(int i = 0; i < INT_LENGTH; i++) {
         int byte = (int) body[i] << 8 * (INT_LENGTH - i - 1);
         debugBlink = debugBlink | byte;
@@ -215,8 +275,8 @@ int getDebugBlink(uint8_t *body) {
  * @param body The payload body
  * @return The debugSyncTime of the payload body
  */
-int getDebugSyncTime(uint8_t *body) {
-    int debugSyncTime = 0;
+unsigned int getDebugSyncTime(uint8_t *body) {
+    unsigned int debugSyncTime = 0;
     for(int i = 0; i < DATETIME_LENGTH; i++) {
         int byte = (int) body[i] << 8 * (DATETIME_LENGTH - i - 1);
         debugSyncTime = debugSyncTime | byte;
@@ -247,14 +307,15 @@ void printDecodedQRCodeData(DecodedQRCodeData decodedQRCodeData) {
     uint8_t *payloadMessage = decodedQRCodeData.payloadMessage;
     uint8_t messageType = decodedQRCodeData.messageType;
     uint8_t operationType = decodedQRCodeData.operationType;
-    int userId = decodedQRCodeData.userId;
-    int generatedAt = decodedQRCodeData.generatedAt;
-    int syncTime = decodedQRCodeData.syncTime;
-    int debugBlink = decodedQRCodeData.debugBlink;
-    int debugSyncTime = decodedQRCodeData.debugSyncTime;
+    unsigned int userId = decodedQRCodeData.userId;
+    unsigned int generatedAt = decodedQRCodeData.generatedAt;
+    unsigned int syncTime = decodedQRCodeData.syncTime;
+    unsigned int debugBlink = decodedQRCodeData.debugBlink;
+    unsigned int debugSyncTime = decodedQRCodeData.debugSyncTime;
     uint8_t *newKey = decodedQRCodeData.newKey;
     bool successfulRead = decodedQRCodeData.successfulDecoding;
     int bodyLength = decodedQRCodeData.bodyLength;
+    int messageLength = decodedQRCodeData.messageLength;
 
     if(successfulRead == false) {
       Serial.println("Unsuccessful QR Code read");
@@ -263,33 +324,81 @@ void printDecodedQRCodeData(DecodedQRCodeData decodedQRCodeData) {
       Serial.println("QR Code decoded data:");
     }
 
+    Serial.print("rawPayload: ");
+    if(rawPayloadPtr != NULL) {
+        for(int i = 0; i < rawPayloadLength; i++) {
+            Serial.print(rawPayloadPtr[i], HEX);
+            Serial.print(" ");
+        }
+        Serial.println();
+    } else {
+        Serial.println("NULL");
+    }
+
     Serial.print("payloadHeader: ");
     Serial.println(payloadHeader, HEX);
 
+    Serial.print("payloadBody: ");
     if(payloadBody != NULL) {
-        Serial.print("payloadBody: ");
         for(int i = 0; i < bodyLength; i++) {
             Serial.print(payloadBody[i], HEX);
             Serial.print(" ");
         }
         Serial.println();
+    } else {
+        Serial.println("NULL");
     }
 
+    Serial.print("payloadHash: ");
     if(payloadHash != NULL) {
-        Serial.print("payloadHash: ");
         for(int i = 0; i < HASH_LENGTH; i++) {
             Serial.print(payloadHash[i], HEX);
             Serial.print(" ");
         }
         Serial.println();
+    } else {
+        Serial.println("NULL");
     }
 
+    Serial.print("payloadMessage: ");
     if(payloadMessage != NULL) {
-        Serial.print("payloadMessage: ");
         for(int i = 0; i < bodyLength + HEADER_LENGTH; i++) {
             Serial.print(payloadMessage[i], HEX);
             Serial.print(" ");
         }
         Serial.println();
+    } else {
+        Serial.println("NULL");
     }
+
+    Serial.print("messageType: ");
+    Serial.println(messageType);
+    Serial.print("operationType: ");
+    Serial.println(operationType);
+    Serial.print("userId: ");
+    Serial.println(userId);
+    Serial.print("generatedAt: ");
+    Serial.println(generatedAt);
+    Serial.print("syncTime: ");
+    Serial.println(syncTime);
+    Serial.print("debugBlink: ");
+    Serial.println(debugBlink);
+    Serial.print("debugSyncTime: ");
+    Serial.println(debugSyncTime);
+
+    Serial.print("newKey: ");
+    if(newKey != NULL) {
+        for(int i = 0; i < NEW_KEY_LENGTH; i++) {
+            Serial.print(newKey[i], HEX);
+            Serial.print(" ");
+        }
+        Serial.println();
+    } else {
+        Serial.println("NULL");
+    }
+
+    Serial.print("bodyLength: ");
+    Serial.println(bodyLength);
+    Serial.print("messageLength: ");
+    Serial.println(messageLength);
 }
