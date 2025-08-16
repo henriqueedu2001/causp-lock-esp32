@@ -2,6 +2,7 @@
 
 #define KEY_LENGTH 20 
 
+bool validateMessage(uint8_t *message, uint8_t *hash, int messageLength, uint8_t messageType);
 void getHMAC_SHA1(
   const uint8_t *key,
   int key_length,

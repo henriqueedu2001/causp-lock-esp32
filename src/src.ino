@@ -7,19 +7,17 @@
 #include "esp_heap_caps.h"
 
 #define BAUD_RATE 115200
+#define ELETRIC_LOCK_PINK 2
 #define LED_BUILTIN 4
-
-uint8_t DEFAULT_ACCESS_KEY[20] = {
-  0x85, 0xf1, 0xe2, 0x04, 0xba, 0x63, 0xfe, 0x41, 0xa0, 0xf0,
-  0xda, 0x37, 0x74, 0x3e, 0x8d, 0x1c, 0x6a, 0xf5, 0x33, 0xfc
-};
 
 void ledBlink(int n);
 void printHeapFreeSize();
+void unlock();
 
 void setup() {
   Serial.begin(BAUD_RATE);
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(ELETRIC_LOCK_PINK, OUTPUT);
   setupQRCodeReader();
   resumeQRCodeReading();
 }
@@ -28,16 +26,28 @@ void loop() {
   QRCodePayload qrcodePayload = readQRCode();
   if(qrcodePayload.successfulRead) {
     DecodedQRCodeData decodedQRCodeData = getQRCodeData(qrcodePayload.rawPayload, qrcodePayload.payloadLength);
+    bool validity = validateMessage(
+      decodedQRCodeData.payloadMessage,
+      decodedQRCodeData.payloadHash,
+      decodedQRCodeData.messageLength,
+      decodedQRCodeData.messageType
+    );
     printDecodedQRCodeData(decodedQRCodeData);
-    uint8_t outputHash[20];
-    getHMAC_SHA1(DEFAULT_ACCESS_KEY, KEY_LENGTH, decodedQRCodeData.payloadMessage, decodedQRCodeData.messageLength, outputHash);
-    bool signatureValidity = validateSignature(decodedQRCodeData.payloadHash, outputHash);
-    printHMACSHA1(outputHash);
-    Serial.print("Signature validity: ");
-    Serial.println(signatureValidity);
-    freeMallocData(&decodedQRCodeData);
+    Serial.print("validity: ");
+    Serial.println(validity);
     ledBlink(1, 50);
+    if(validity) {
+      unlock();
+    }
+    freeMallocData(&decodedQRCodeData);
   }
+}
+
+void unlock() {
+  digitalWrite(ELETRIC_LOCK_PINK, HIGH);
+  delay(1000);
+  digitalWrite(ELETRIC_LOCK_PINK, LOW);
+  delay(4000);
 }
 
 /**
