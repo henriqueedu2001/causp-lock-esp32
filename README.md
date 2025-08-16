@@ -20,7 +20,7 @@ Dada essa configuração, emprega-se os seguintes pinos GPIO com seus respectivo
 Os pinos da câmera OV2640 estão encapsulados na implementação da biblioteca `ESP32QRCodeReader`, para o modelo `CAMERA_MODEL_AI_THINKER`. Portanto, não é necessária uma declaração explícita dos GPIOs da câmera no código.
 
 ## Controle da Câmera OV2640
-A captura das imagens das câmeras é implementada pelo `qrcode.cpp` com `vTask`. A captura segue numa thread própria da função ``onQrCodeTask`, que pode ou não ficar em IDLE a depender do booleano `readingQRCode`, para economizar energia e processamento. Por padrão, `readingQRCode = true` desde o início da aplicação. Mas, é possível interromper as leituras com os métodos `resumeQRCodeReading()` e `suspendQRCodeReading()`.
+A captura das imagens das câmeras é implementada pelo `qrcode.cpp` com `vTask`. A captura segue numa thread própria da função `onQrCodeTask`, que pode ou não ficar em IDLE a depender do booleano `readingQRCode`, para economizar energia e processamento. Por padrão, `readingQRCode = true` desde o início da aplicação. Mas, é possível interromper as leituras com os métodos `resumeQRCodeReading()` e `suspendQRCodeReading()`.
 
 A biblioteca `ESP32QRCodeReader` encarrega-se de decodificar o payload do QR Code a partir da imagem capturada pela câmera. A cada captura, o `reader` da biblioteca, invocado no `onQrCodeTask` tenta detectar e decodificar o QR Code e a thread escreve o payload lido na variável `qrCodePayload` do `qrcode.cpp`. Essa variável do tipo struct, definida no header `qrcode.h`.
 
